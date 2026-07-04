@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>天気アプリ</title>
+<style>
+  :root {
+    --bg-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    --card-bg: rgba(255, 255, 255, 0.15);
+    --text-color: #ffffff;
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    min-height: 100vh;
+    font-family: "Hiragino Sans", "Yu Gothic", "Segoe UI", sans-serif;
+    background: var(--bg-gradient);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    transition: background 0.6s ease;
+  }
+
+  .app {
+    width: 100%;
+    max-width: 420px;
+  }
+
+  .city-selector {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    background: rgba(255, 255, 255, 0.15);
+    padding: 6px;
+    border-radius: 16px;
+    backdrop-filter: blur(10px);
+  }
+
+  .city-btn {
+    flex: 1;
+    padding: 10px 0;
+    border: none;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--text-color);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.25s ease, transform 0.15s ease;
+  }
+
+  .city-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+  }
+
+  .city-btn.active {
+    background: rgba(255, 255, 255, 0.9);
+    color: #2c7fd6;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .card {
+    background: var(--card-bg);
+    border-radius: 28px;
+    padding: 36px 28px;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: var(--text-color);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .location {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    opacity: 0.95;
+  }
+
+  .date {
+    font-size: 13px;
+    opacity: 0.75;
+    margin-top: 4px;
+  }
+
+  .emoji {
+    font-size: 100px;
+    line-height: 1;
+    margin: 24px 0 8px;
+    filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.2));
+  }
+
+  .temp {
+    font-size: 64px;
+    font-weight: 700;
+    letter-spacing: -1px;
+  }
+
+  .temp span {
+    font-size: 28px;
+    font-weight: 500;
+    vertical-align: super;
+  }
+
+  .condition {
+    font-size: 22px;
+    font-weight: 600;
+    margin-top: 6px;
+    letter-spacing: 1px;
+  }
+
+  .details {
+    display: flex;
+    justify-content: space-around;
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.25);
+  }
+
+  .detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .detail-label {
+    font-size: 12px;
+    opacity: 0.7;
+  }
+
+  .detail-value {
+    font-size: 17px;
+    font-weight: 600;
+  }
+
+  .status {
+    margin-top: 18px;
+    font-size: 13px;
+    opacity: 0.85;
+    min-height: 18px;
+  }
+
+  .spinner {
+    width: 42px;
+    height: 42px;
+    border: 4px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    margin: 40px auto;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .fade-in {
+    animation: fadeIn 0.4s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .updated-at {
+    margin-top: 14px;
+    font-size: 11px;
+    opacity: 0.6;
+  }
+
+  @media (max-width: 400px) {
+    .emoji { font-size: 80px; }
+    .temp { font-size: 52px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="city-selector" id="citySelector"></div>
+  <div class="card" id="card">
+    <div class="spinner" id="spinner"></div>
+  </div>
+</div>
+
+<script>
+  const CITIES = {
+    takamatsu: { name: "高松", latitude: 34.34, longitude: 134.05 },
+    tokyo:     { name: "東京", latitude: 35.6762, longitude: 139.6503 },
+    osaka:     { name: "大阪", latitude: 34.6937, longitude: 135.5023 },
+  };
+
+  // wttr.in (World Weather Online) weatherCode -> [emoji, 日本語, 背景グラデーション]
+  const WEATHER_MAP = {
+    113: ["☀️", "快晴", "linear-gradient(135deg,#f6d365,#fda085)"],
+    116: ["⛅", "晴れ時々くもり", "linear-gradient(135deg,#89f7fe,#66a6ff)"],
+    119: ["☁️", "くもり", "linear-gradient(135deg,#757f9a,#d7dde8)"],
+    122: ["☁️", "曇り(厚い)", "linear-gradient(135deg,#757f9a,#d7dde8)"],
+    143: ["🌫️", "もや", "linear-gradient(135deg,#bdc3c7,#2c3e50)"],
+    176: ["🌦️", "弱い雨の可能性", "linear-gradient(135deg,#657d95,#3a6186)"],
+    179: ["🌨️", "弱い雪の可能性", "linear-gradient(135deg,#83a4d4,#b6fbff)"],
+    182: ["🌨️", "みぞれの可能性", "linear-gradient(135deg,#83a4d4,#b6fbff)"],
+    185: ["🌧️", "着氷性の霧雨の可能性", "linear-gradient(135deg,#4b6cb7,#182848)"],
+    200: ["⛈️", "雷雨の可能性", "linear-gradient(135deg,#373b44,#000000)"],
+    227: ["❄️", "地吹雪", "linear-gradient(135deg,#83a4d4,#b6fbff)"],
+    230: ["❄️", "吹雪", "linear-gradient(135deg,#83a4d4,#b6fbff)"],
+    248: ["🌫️", "霧", "linear-gradient(135deg,#bdc3c7,#2c3e50)"],
+    260: ["🌫️", "着氷性の霧", "linear-gradient(135deg,#bdc3c7,#2c3e50)"],
+    263: ["🌦️", "弱い霧雨", "linear-gradient(135deg,#657d95,#3a6186)"],
+    266: ["🌦️", "霧雨", "linear-gradient(135deg,#657d95,#3a6186)"],
+    281: ["🌧️", "着氷性の霧雨", "linear-gradient(135deg,#4b6cb7,#182848)"],
+    284: ["🌧️", "強い着氷性の霧雨", "linear-gradient(135deg,#4b6cb7,#182848)"],
+    293: ["🌦️", "弱い雨", "linear-gradient(135deg,#4b6cb7,#182848)"],
+    296: ["🌧️", "小雨", "linear-gradient(135deg,#4b6cb7,#182848)"],
+    299: ["🌧️", "時々中程度の雨", "linear-gradient(135deg,#4b6cb7,#182848)"],
+    302: ["🌧️", "雨", "linear-gradient(135deg,#4b6cb7,#182848)"],
+    305: ["🌧️", "時々強い雨", "linear-gradient(135deg,#373b44,#4286f4)"],
+    308: ["🌧️", "強い雨", "linear-gradient(135deg,#373b44,#4286f4)"],
+    311: ["🌧️", "弱い着氷性の雨", "linear-gradient(135deg,#4b6cb7,#182848)"],
+    314: ["🌧️", "着氷性の雨", "linear-gradient(135deg,#4b6cb7,#182848)"],
+    317: ["🌨️", "弱いみぞれ", "linear-gradient(135deg,#83a4d4,#b6fbff)"],
+    320: ["🌨️", "みぞれ", "linear-gradient(135deg,#83a4d4,#b6fbff)"],
+    323: ["🌨️", "弱い雪", "linear-gradient(135deg,#83a4d4,#b6fbff)"],
+    326: ["🌨️", "小雪", "linear-gradient(135deg,#83a4d4,#b6fbff)"],
+    329: ["🌨️", "時々中程度の雪", "linear-gradient(135deg,#83a4d4,#b6fbff)"],
+    332: ["❄️", "雪", "linear-gradient(135deg,#83a4d4,#b6fbff)"],
+    335: ["❄️", "時々強い雪", "linear-gradient(135deg,#83a4d4,#b6fbff)"],
+    338: ["❄️", "大雪", "linear-gradient(135deg,#83a4d4,#b6fbff)"],
+    350: ["🌨️", "氷粒", "linear-gradient(135deg,#83a4d4,#b6fbff)"],
+    353: ["🌦️", "弱いにわか雨", "linear-gradient(135deg,#4b6cb7,#182848)"],
+    356: ["🌧️", "にわか雨", "linear-gradient(135deg,#4b6cb7,#182848)"],
+    359: ["⛈️", "激しいにわか雨", "linear-gradient(135deg,#373b44,#000000)"],
+    362: ["🌨️", "弱いみぞれのにわか雨", "linear-gradient(135deg,#83a4d4,#b6fbff)"],
+    365: ["🌨️", "みぞれのにわか雨", "linear-gradient(135deg,#83a4d4,#b6fbff)"],
+    368: ["🌨️", "弱いにわか雪", "linear-gradient(135deg,#83a4d4,#b6fbff)"],
+    371: ["❄️", "にわか雪", "linear-gradient(135deg,#83a4d4,#b6fbff)"],
+    374: ["🌨️", "弱い氷粒のにわか雨", "linear-gradient(135deg,#83a4d4,#b6fbff)"],
+    377: ["🌨️", "氷粒のにわか雨", "linear-gradient(135deg,#83a4d4,#b6fbff)"],
+    386: ["⛈️", "弱い雷雨", "linear-gradient(135deg,#373b44,#000000)"],
+    389: ["⛈️", "雷雨", "linear-gradient(135deg,#373b44,#000000)"],
+    392: ["⛈️", "弱い雷雪", "linear-gradient(135deg,#373b44,#000000)"],
+    395: ["⛈️", "雷雪", "linear-gradient(135deg,#373b44,#000000)"],
+  };
+
+  function getWeatherInfo(code) {
+    return WEATHER_MAP[code] || ["❓", "不明", "linear-gradient(135deg,#4facfe,#00f2fe)"];
+  }
+
+  const citySelector = document.getElementById("citySelector");
+  const card = document.getElementById("card");
+  let currentCity = "takamatsu";
+
+  function renderButtons() {
+    citySelector.innerHTML = "";
+    Object.entries(CITIES).forEach(([key, city]) => {
+      const btn = document.createElement("button");
+      btn.className = "city-btn" + (key === currentCity ? " active" : "");
+      btn.textContent = city.name;
+      btn.addEventListener("click", () => {
+        if (currentCity === key) return;
+        currentCity = key;
+        renderButtons();
+        loadWeather(key);
+      });
+      citySelector.appendChild(btn);
+    });
+  }
+
+  function showLoading() {
+    card.innerHTML = '<div class="spinner"></div>';
+  }
+
+  function showError(message) {
+    card.innerHTML = `
+      <div class="fade-in" style="padding:20px 0;">
+        <div style="font-size:48px;">⚠️</div>
+        <div style="margin-top:12px; font-weight:600;">取得に失敗しました</div>
+        <div style="margin-top:6px; font-size:13px; opacity:0.8;">${message}</div>
+      </div>
+    `;
+  }
+
+  async function loadWeather(cityKey) {
+    const city = CITIES[cityKey];
+    showLoading();
+
+    const url = `https://wttr.in/${city.latitude},${city.longitude}?format=j1`;
+
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+
+      if (cityKey !== currentCity) return; // 切り替え後の古いレスポンスは無視
+
+      const current = data.current_condition[0];
+      const [emoji, label, gradient] = getWeatherInfo(Number(current.weatherCode));
+
+      document.body.style.background = gradient;
+
+      const now = new Date();
+      const dateStr = now.toLocaleDateString("ja-JP", {
+        month: "long", day: "numeric", weekday: "short"
+      });
+      const timeStr = now.toLocaleTimeString("ja-JP", {
+        hour: "2-digit", minute: "2-digit"
+      });
+
+      card.innerHTML = `
+        <div class="fade-in">
+          <div class="location">📍 ${city.name}</div>
+          <div class="date">${dateStr}</div>
+          <div class="emoji">${emoji}</div>
+          <div class="temp">${Math.round(current.temp_C)}<span>°C</span></div>
+          <div class="condition">${label}</div>
+          <div class="details">
+            <div class="detail-item">
+              <div class="detail-label">湿度</div>
+              <div class="detail-value">💧 ${current.humidity}%</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">風速</div>
+              <div class="detail-value">🌬️ ${(current.windspeedKmph / 3.6).toFixed(1)}m/s</div>
+            </div>
+          </div>
+          <div class="updated-at">最終更新: ${timeStr}</div>
+        </div>
+      `;
+    } catch (err) {
+      if (cityKey !== currentCity) return;
+      showError(err.message);
+    }
+  }
+
+  renderButtons();
+  loadWeather(currentCity);
+</script>
+
+</body>
+</html>
